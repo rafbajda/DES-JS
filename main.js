@@ -1,20 +1,69 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-console */
-const readline = require('readline');
 
+// imports
+const readline = require('readline');
+const fs = require('fs');
+
+//variables
 let workingSystem;
 let chosenSystem;
 let inputSystem;
-let message;
-let key;
 
+let message;
+let messagePath;
+
+let key;
+let keyPath
+
+let encryptedValue;
+let encryptedValuePadding;
+
+let decryptedValue;
+let decryptedValuePadding;
+
+// utils
 const deleteSpaces = str => str.replace(/ /g, '');
 
+const chunkString = (str, len) => str.match(new RegExp(`.{1,${len}}`, 'g'));
+
+const hexToBin = hex => `00000000${parseInt(hex, 16).toString(2)}`.substr(-8);
+
+const decToBin = dec => `0000${parseInt(dec, 10).toString(2)}`.substr(-4);
+
+const binToHex = bin => parseInt(bin, 2).toString(16);
+
+const bin = _key =>
+    chunkString(_key, 2)
+        .map(hex => hexToBin(hex))
+        .join('');
+
+const shiftString = (str, shift) => str.slice(shift, str.length) + str.slice(0, shift);
+
+const transfromBinToHex = value =>
+    chunkString(value, 4)
+        .map(binToHex)
+        .join('')
+        .toUpperCase();
+
+const transfromBinToHexWithPadding = value =>
+    chunkString(value, 4)
+        .map(binToHex)
+        .join(' ')
+        .toUpperCase();
+
+const transformBinToBinPadding = value =>
+    chunkString(value, 4)
+        .join(' ')
+        .toUpperCase();
+
+//question interface
 const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
 });
 
+//questions
 const askAboutInputSystem = () =>
     new Promise((resolve, reject) => {
         rl.question(
@@ -74,7 +123,7 @@ const askAboutSystem = () =>
 
 const askAboutMessage = () =>
     new Promise((resolve, reject) => {
-        rl.question('Enter the message\n', answer => {
+        rl.question(`Enter the message\n`, answer => {
             const trimmedAnswer = deleteSpaces(answer);
             switch (chosenSystem) {
                 case 'bin':
@@ -95,9 +144,27 @@ const askAboutMessage = () =>
         });
     });
 
+const askAboutMessagePath = () =>
+    new Promise((resolve, reject) => {
+        rl.question(`Enter the message path\n`, answer => {
+            const trimmedAnswer = deleteSpaces(answer);
+            messagePath = trimmedAnswer;
+            resolve();
+        });
+    });
+
+const askAboutKeyPath = () =>
+    new Promise((resolve, reject) => {
+        rl.question(`Enter the key path\n`, answer => {
+            const trimmedAnswer = deleteSpaces(answer);
+            keyPath = trimmedAnswer;
+            resolve();
+        });
+    });
+
 const askAboutKey = () =>
     new Promise((resolve, reject) => {
-        rl.question('Enter the key\n', answer => {
+        rl.question(`Enter the key\n`, answer => {
             const trimmedAnswer = deleteSpaces(answer);
             switch (chosenSystem) {
                 case 'bin':
@@ -119,6 +186,7 @@ const askAboutKey = () =>
     });
 
 /*eslint-disable */
+// permutation arrays
 const
     // permutacja wejsciowa klucza, klucz 64 bitowy, wyrzucamy co 8  bit ktory jest bitem parzystosci i 
     // taki klucz skladajacy sie z ${64-8} bitow cisniemy przez permutacje PC1, potem dzielimy na 2x28
@@ -134,7 +202,7 @@ const
         21, 13, 5, 28, 20, 12, 4
     ],
 
-    // jak te 2x28 klucze przesuwamy, to je laczymy i permutacja z kompersja przez te cos na dole, dzieki czemu
+    // jak te 2x28 klucze przesuwamy, to je laczymy i permutacja z kompresja przez te cos na dole, dzieki czemu
     // mamy nowy klucz i-cyklu (1 z 16) ktory ma notabene 48 bitow a nie 56 bo to permutacja z kompresja
     PC2 = [
         14, 17, 11, 24, 1, 5,
@@ -257,17 +325,6 @@ const
     NUM_OF_LEFT_SHIFTS = [1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1];
 /* eslint-enable */
 
-const chunkString = (str, len) => str.match(new RegExp(`.{1,${len}}`, 'g'));
-const hexToBin = hex => `00000000${parseInt(hex, 16).toString(2)}`.substr(-8);
-const decToBin = dec => `0000${parseInt(dec, 10).toString(2)}`.substr(-4);
-const binToHex = bin => parseInt(bin, 2).toString(16);
-
-const bin = _key =>
-    chunkString(_key, 2)
-        .map(hex => hexToBin(hex))
-        .join('');
-const shiftString = (str, shift) => str.slice(shift, str.length) + str.slice(0, shift);
-
 const keySchedule = key => {
     // generujemy klucze!
     const subkeys = []; // pusta tablica xD
@@ -331,7 +388,7 @@ const des = (msg, key, subkeys) => {
         const sBoxOut = sBoxOutput(stringXOR(subkeys[i], expandBlock(R0), 48));
         // 32 bity cisniemy przez permutacje P
         const finalPerm = P.map(index => sBoxOut[index - 1]).join('');
-        // R0 otrzymujemy przez corowanie finalPerm z prevL0
+        // R0 otrzymujemy przez xorowanie finalPerm z prevL0
         R0 = stringXOR(prevL0, finalPerm, 32);
         // prevy rownaja sie terazniejszym
         prevL0 = L0;
@@ -340,26 +397,11 @@ const des = (msg, key, subkeys) => {
     // po 16 iteracjach laczymy prawice i lewicy i cisniemy permutacje przez FINAL_IP otrzymujac zaszyfrowana wartosc
     const pair = R0 + L0;
     const enc = FINAL_IP.map(index => pair[index - 1]).join('');
-    // a to tylko po to zeby zmieni cbin na hex
+    // i zwracamy zaszyfrowana binarke
     return enc;
 };
 
-const transfromBinToHex = value =>
-    chunkString(value, 4)
-        .map(binToHex)
-        .join('')
-        .toUpperCase();
 
-const transfromBinToHexWithPadding = value =>
-    chunkString(value, 4)
-        .map(binToHex)
-        .join(' ')
-        .toUpperCase();
-
-const transformBinToBinPadding = value =>
-    chunkString(value, 4)
-        .join(' ')
-        .toUpperCase();
 
 const encode = (msg, _key) => des(msg, _key, keySchedule(_key));
 const decode = (msg, _key) => des(msg, _key, keySchedule(_key).reverse());
@@ -373,42 +415,105 @@ const decode = (msg, _key) => des(msg, _key, keySchedule(_key).reverse());
 // console.log(enc); // => 85E813540F0AB405
 // console.log(decode(bin(enc), key)); // => 0123456789ABCDEF
 
+const getMessageFromFile = async () => 
+    new Promise((resolve, reject) => {
+        fs.open(messagePath, 'r', function(status, fd) {
+            if (status) {
+                console.log(status.message);
+                return;
+            }
+            var buffer = Buffer.alloc(100);
+            fs.read(fd, buffer, 0, 100, 0, function(err, num) {
+                message = deleteSpaces(buffer.toString('utf8', 0, num))
+                resolve();
+            });
+        });      
+    })
+
+const getKeyFromFile = async () => 
+    new Promise((resolve, reject) => {
+        fs.open(keyPath, 'r', function(status, fd) {
+            if (status) {
+                console.log(status.message);
+                return;
+            }
+            var buffer = Buffer.alloc(100);
+            fs.read(fd, buffer, 0, 100, 0, function(err, num) {
+                key = deleteSpaces(buffer.toString('utf8', 0, num))
+                resolve();
+            });
+        });      
+    })
+
+const handleDes = () => {
+    let binMessage;
+    let binKey;
+    if (chosenSystem === 'bin') {
+        binMessage = message;
+        binKey = key;
+        if (workingSystem === 'encrypt') {
+            encryptedValue = encode(binMessage, binKey);
+            encryptedValuePadding = transformBinToBinPadding(encryptedValue)
+            console.log('ENCRYPTED: ', encryptedValuePadding);
+        } else {
+            decryptedValue = decode(binMessage, binKey);
+            decryptedValuePadding = transformBinToBinPadding(decryptedValue)
+            console.log('DECRYPTED: ', decryptedValuePadding);
+        }
+    } else {
+        binMessage = bin(message);
+        binKey = bin(key);
+        if (workingSystem === 'encrypt') {
+            console.log(
+                'ENCRYPTED: ',
+                transfromBinToHexWithPadding(encode(binMessage, binKey))
+            );
+        } else {
+            console.log(
+                'DECRYPTED: ',
+                transfromBinToHexWithPadding(decode(binMessage, binKey))
+            );
+        }
+    }
+}
+
+
 const main = async () => {
     await askAboutWorkingSystem();
     await askAboutInputSystem();
     if (inputSystem === 'console') {
         await askAboutSystem();
+        await askAboutMessage();
+        await askAboutKey();
+    } else {
+        await askAboutMessagePath();
+        await askAboutKeyPath();
     }
-    await askAboutMessage();
-    await askAboutKey();
+    
     rl.close();
 
     if (inputSystem === 'console') {
-        let binMessage;
-        let binKey;
-        if (chosenSystem === 'bin') {
-            binMessage = message;
-            binKey = key;
+        handleDes();
+    } else {
+        Promise.all([getMessageFromFile(), getKeyFromFile()]).then(() => {
+            handleDes();
             if (workingSystem === 'encrypt') {
-                console.log('ENCRYPTED: ', transformBinToBinPadding(encode(binMessage, binKey)));
+                fs.writeFile('./encrypted.bin', encryptedValuePadding, function(err) {
+                    if(err) {
+                        return console.log(err);
+                    }                
+                    console.log("Encrypted message saved at ./encrypted.bin");
+                }); 
             } else {
-                console.log('DECRYPTED: ', transformBinToBinPadding(decode(binMessage, binKey)));
+                fs.writeFile('./decrypted.bin', decryptedValuePadding, function(err) {
+                    if(err) {
+                        return console.log(err);
+                    }                
+                    console.log("Decrypted message saved at ./decrypted.bin");
+                }); 
             }
-        } else {
-            binMessage = bin(message);
-            binKey = bin(key);
-            if (workingSystem === 'encrypt') {
-                console.log(
-                    'ENCRYPTED: ',
-                    transfromBinToHexWithPadding(encode(binMessage, binKey))
-                );
-            } else {
-                console.log(
-                    'DECRYPTED: ',
-                    transfromBinToHexWithPadding(decode(binMessage, binKey))
-                );
-            }
-        }
+
+        })        
     }
 };
 
