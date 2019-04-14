@@ -7,22 +7,68 @@ const fs = require('fs');
 
 //variables
 let workingSystem;
-let chosenSystem;
 let inputSystem;
+let consoleInputType;
+let keyInputType;
+let consoleOutputType;
 
-let message;
+let savingToBinaryFile = false;
+
+let message = '';
 let messagePath;
 
 let key;
 let keyPath
 
-let encryptedValue;
-let encryptedValuePadding;
-
-let decryptedValue;
-let decryptedValuePadding;
+let encryptedValue='';
+let decryptedValue = '';
 
 // utils
+const removePadding = str => {
+    const chunked = chunkString(str, 64);
+    let lastElement = chunked[chunked.length - 1];
+    while(lastElement.charAt(lastElement.length - 1) !== '1') {
+        lastElement = lastElement.substring(0, lastElement.length - 1);
+    }
+    lastElement = lastElement.substring(0, lastElement.length - 1);
+    chunked[chunked.length - 1] = lastElement;
+    return chunked.join('');
+}
+
+const createArrayWithPadding = arr => {
+    const tempArr = arr;
+    if(tempArr[tempArr.length - 1].length === 64) {
+        let newItem = '';
+        newItem = newItem.padStart(64, '0');
+        newItem = '1' + newItem.slice(1);
+        tempArr.push(newItem);
+    } else {
+        let addition = '';
+        const remains = 64 - tempArr[tempArr.length - 1].length;
+        addition = addition.padStart(remains, '0');        
+        addition = '1' + addition.slice(1);
+        tempArr[tempArr.length - 1] += addition 
+    }
+    return tempArr;
+} 
+
+const binToString = str => {
+    let binString = '';    
+    chunkString(str, 8).map(function(bin) {
+        binString += String.fromCharCode(parseInt(bin, 2));
+      });
+    return binString;
+}
+
+const stringToBinary = (str, spaceSeparatedOctets) => {
+    const zeroPad = (num) => "00000000".slice(String(num).length) + num;
+
+    return str.replace(/[\s\S]/g, function(str) {
+        str = zeroPad(str.charCodeAt().toString(2));
+        return !1 == spaceSeparatedOctets ? str : str + " "
+    });
+};
+
 const deleteSpaces = str => str.replace(/ /g, '');
 
 const chunkString = (str, len) => str.match(new RegExp(`.{1,${len}}`, 'g'));
@@ -30,6 +76,8 @@ const chunkString = (str, len) => str.match(new RegExp(`.{1,${len}}`, 'g'));
 const hexToBin = hex => `00000000${parseInt(hex, 16).toString(2)}`.substr(-8);
 
 const decToBin = dec => `0000${parseInt(dec, 10).toString(2)}`.substr(-4);
+
+const decToBin8bytes = dec => (dec >>> 0).toString(2);
 
 const binToHex = bin => parseInt(bin, 2).toString(16);
 
@@ -40,21 +88,10 @@ const bin = _key =>
 
 const shiftString = (str, shift) => str.slice(shift, str.length) + str.slice(0, shift);
 
-const transfromBinToHex = value =>
+const transformBinToHex = value =>
     chunkString(value, 4)
         .map(binToHex)
         .join('')
-        .toUpperCase();
-
-const transfromBinToHexWithPadding = value =>
-    chunkString(value, 4)
-        .map(binToHex)
-        .join(' ')
-        .toUpperCase();
-
-const transformBinToBinPadding = value =>
-    chunkString(value, 4)
-        .join(' ')
         .toUpperCase();
 
 //question interface
@@ -64,6 +101,85 @@ const rl = readline.createInterface({
 });
 
 //questions
+
+const askAboutSavingToBinaryFile = () => new Promise((resolve, reject) => {
+    rl.question(
+        'Do you want to create binary file?(yes/no) \n',
+        answer => {
+            switch (answer) {
+                case 'yes':
+                    savingToBinaryFile = true;
+                    resolve();
+                    break;
+                case 'no':
+                    savingToBinaryFile = false;
+                    resolve();
+                    break;               
+                default:
+                    console.log('wrong input.');
+                    process.exit(1);
+            }
+        }
+    );
+});
+
+const askAboutConsoleOutputType = () => new Promise((resolve, reject) => {
+    rl.question(
+        'Enter type of console output(text/bin/hex) \n',
+        answer => {
+            switch (answer) {
+                case 'text':
+                case 'hex':
+                case 'bin':
+                    consoleOutputType = answer;
+                    resolve();
+                    break;                
+                default:
+                    console.log('wrong input.');
+                    process.exit(1);
+            }
+        }
+    );
+});
+
+const askAboutKeyInputType = () => new Promise((resolve, reject) => {
+    rl.question(
+        'Enter key type(bin/hex)\n',
+        answer => {
+            switch (answer) {
+                case 'hex':
+                case 'bin':
+                    keyInputType = answer;
+                    resolve();
+                    break;                
+                default:
+                    console.log('wrong input.');
+                    process.exit(1);
+            }
+        }
+    );
+});
+
+const askAboutConsoleInputType = () => 
+    new Promise((resolve, reject) => {
+        rl.question(
+            'Enter input type(text/bin/hex)\n',
+            answer => {
+                switch (answer) {
+                    case 'text':
+                    case 'bin':
+                    case 'hex':
+                        consoleInputType = answer;
+                        resolve();
+                        break;                
+                    default:
+                        console.log('wrong input.');
+                        process.exit(1);
+                }
+            }
+        );
+    });
+
 const askAboutInputSystem = () =>
     new Promise((resolve, reject) => {
         rl.question(
@@ -105,41 +221,23 @@ const askAboutWorkingSystem = () =>
         });
     });
 
-const askAboutSystem = () =>
-    new Promise((resolve, reject) => {
-        rl.question('What system do you prefer? (type bin/hex)\n', answer => {
-            switch (answer) {
-                case 'bin':
-                case 'hex':
-                    chosenSystem = answer;
-                    resolve();
-                    break;
-                default:
-                    console.log('wrong input.');
-                    process.exit(1);
-            }
-        });
-    });
-
 const askAboutMessage = () =>
     new Promise((resolve, reject) => {
         rl.question(`Enter the message\n`, answer => {
             const trimmedAnswer = deleteSpaces(answer);
-            switch (chosenSystem) {
-                case 'bin':
-                    if (trimmedAnswer.length !== 64) {
-                        console.log('wrong input.');
-                        process.exit(1);
-                    }
-                    break;
-                default:
-                    if (trimmedAnswer.length !== 16) {
-                        console.log('wrong input.');
-                        process.exit(1);
-                    }
-                    break;
+            if(inputSystem === 'console') {
+                switch(consoleInputType) {
+                    case 'text':
+                        message = stringToBinary(trimmedAnswer, false)
+                        break;
+                    case 'hex':
+                        message = bin(trimmedAnswer);
+                        break;
+                    default: 
+                        message = trimmedAnswer;
+                        break;
+                }
             }
-            message = trimmedAnswer;
             resolve();
         });
     });
@@ -153,20 +251,11 @@ const askAboutMessagePath = () =>
         });
     });
 
-const askAboutKeyPath = () =>
-    new Promise((resolve, reject) => {
-        rl.question(`Enter the key path\n`, answer => {
-            const trimmedAnswer = deleteSpaces(answer);
-            keyPath = trimmedAnswer;
-            resolve();
-        });
-    });
-
 const askAboutKey = () =>
     new Promise((resolve, reject) => {
         rl.question(`Enter the key\n`, answer => {
             const trimmedAnswer = deleteSpaces(answer);
-            switch (chosenSystem) {
+            switch (keyInputType) {
                 case 'bin':
                     if (trimmedAnswer.length !== 64) {
                         console.log('wrong input.');
@@ -180,7 +269,11 @@ const askAboutKey = () =>
                     }
                     break;
             }
-            key = trimmedAnswer;
+            if(keyInputType === 'hex') {
+                key = bin(trimmedAnswer);
+            } else {
+                key = trimmedAnswer;
+            }
             resolve();
         });
     });
@@ -417,104 +510,98 @@ const decode = (msg, _key) => des(msg, _key, keySchedule(_key).reverse());
 
 const getMessageFromFile = async () => 
     new Promise((resolve, reject) => {
-        fs.open(messagePath, 'r', function(status, fd) {
-            if (status) {
-                console.log(status.message);
-                return;
-            }
-            var buffer = Buffer.alloc(100);
-            fs.read(fd, buffer, 0, 100, 0, function(err, num) {
-                message = deleteSpaces(buffer.toString('utf8', 0, num))
-                resolve();
-            });
-        });      
+        binary = fs.readFileSync(messagePath); 
+        const uint8array = Uint8Array.from(binary)
+        console.log('uint8array', uint8array)
+        uint8array.forEach(item => {
+            message += decToBin8bytes(item).padStart(8, '0');
+        })
+        console.log('msg: ', message)
+        resolve();
     })
 
-const getKeyFromFile = async () => 
+const saveDataToFile = async (data, path) => 
     new Promise((resolve, reject) => {
-        fs.open(keyPath, 'r', function(status, fd) {
-            if (status) {
-                console.log(status.message);
-                return;
+        let buffer = new Buffer(data)
+        fs.open(path, 'w', function(err, fd) {  
+            if (err) {
+                throw 'could not open file: ' + err;
             }
-            var buffer = Buffer.alloc(100);
-            fs.read(fd, buffer, 0, 100, 0, function(err, num) {
-                key = deleteSpaces(buffer.toString('utf8', 0, num))
-                resolve();
+            fs.write(fd, buffer, 0, buffer.length, null, function(err) {
+                if (err) throw 'error writing file: ' + err;
+                fs.close(fd, function() {
+                    console.log('wrote the file successfully');
+                });
             });
-        });      
+        });
+        resolve();
     })
 
-const handleDes = () => {
-    let binMessage;
-    let binKey;
-    if (chosenSystem === 'bin') {
-        binMessage = message;
-        binKey = key;
-        if (workingSystem === 'encrypt') {
-            encryptedValue = encode(binMessage, binKey);
-            encryptedValuePadding = transformBinToBinPadding(encryptedValue)
-            console.log('ENCRYPTED: ', encryptedValuePadding);
-        } else {
-            decryptedValue = decode(binMessage, binKey);
-            decryptedValuePadding = transformBinToBinPadding(decryptedValue)
-            console.log('DECRYPTED: ', decryptedValuePadding);
-        }
-    } else {
-        binMessage = bin(message);
-        binKey = bin(key);
-        if (workingSystem === 'encrypt') {
-            console.log(
-                'ENCRYPTED: ',
-                transfromBinToHexWithPadding(encode(binMessage, binKey))
-            );
-        } else {
-            console.log(
-                'DECRYPTED: ',
-                transfromBinToHexWithPadding(decode(binMessage, binKey))
-            );
-        }
+const handleOutput = (value) => {
+    switch(consoleOutputType) {
+        case 'text':
+            console.log('Value:\n', binToString(value))
+            break;
+        case 'hex':
+            console.log('Value:\n', transformBinToHex(value))
+            break;
+        default:
+            console.log('Value:\n', value)
+            break;            
     }
+}
+
+const handleDes = async () => {
+    const chunkedMessage = chunkString(message, 64);
+    // console.log(paddingArray)
+
+
+    if (workingSystem === 'encrypt') {
+        const paddingArray = createArrayWithPadding(chunkedMessage);
+        paddingArray.forEach(item => {
+            const encryptedItem = encode(item, key);
+            encryptedValue += encryptedItem;  
+        })
+        if(savingToBinaryFile) {
+            await saveDataToFile(encryptedValue, './encrypted.bin');
+        }
+        handleOutput(encryptedValue)
+    } else {
+        chunkedMessage.forEach(item => {
+            const decryptedItem = decode(item, key);
+            decryptedValue += decryptedItem;
+        })  
+        decryptedValue = removePadding(decryptedValue);
+        if(savingToBinaryFile) {
+            await saveDataToFile(decryptedValue, './decrypted.bin');
+        }
+        handleOutput(decryptedValue)
+    }
+
 }
 
 
 const main = async () => {
+
     await askAboutWorkingSystem();
     await askAboutInputSystem();
     if (inputSystem === 'console') {
-        await askAboutSystem();
+        await askAboutConsoleInputType();
         await askAboutMessage();
-        await askAboutKey();
     } else {
         await askAboutMessagePath();
-        await askAboutKeyPath();
     }
-    
+    await askAboutSavingToBinaryFile();    
+    await askAboutKeyInputType();
+    await askAboutKey();
+    await askAboutConsoleOutputType();
     rl.close();
 
-    if (inputSystem === 'console') {
-        handleDes();
-    } else {
-        Promise.all([getMessageFromFile(), getKeyFromFile()]).then(() => {
-            handleDes();
-            if (workingSystem === 'encrypt') {
-                fs.writeFile('./encrypted.bin', encryptedValuePadding, function(err) {
-                    if(err) {
-                        return console.log(err);
-                    }                
-                    console.log("Encrypted message saved at ./encrypted.bin");
-                }); 
-            } else {
-                fs.writeFile('./decrypted.bin', decryptedValuePadding, function(err) {
-                    if(err) {
-                        return console.log(err);
-                    }                
-                    console.log("Decrypted message saved at ./decrypted.bin");
-                }); 
-            }
-
-        })        
+    if(inputSystem === 'file') {
+        await getMessageFromFile();
     }
+
+    await handleDes();
 };
 
 main();
