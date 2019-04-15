@@ -5,7 +5,7 @@
 const readline = require('readline');
 const fs = require('fs');
 
-//variables
+// variables
 let workingSystem;
 let inputSystem;
 let consoleInputType;
@@ -18,65 +18,66 @@ let message = '';
 let messagePath;
 
 let key;
-let keyPath
 
-let encryptedValue='';
+let encryptedValue = '';
 let decryptedValue = '';
 
 // utils
+const chunkString = (str, len) => str.match(new RegExp(`.{1,${len}}`, 'g'));
+
 const removePadding = str => {
     const chunked = chunkString(str, 64);
     let lastElement = chunked[chunked.length - 1];
-    while(lastElement.charAt(lastElement.length - 1) !== '1') {
+    while (lastElement.charAt(lastElement.length - 1) !== '1') {
         lastElement = lastElement.substring(0, lastElement.length - 1);
     }
     lastElement = lastElement.substring(0, lastElement.length - 1);
     chunked[chunked.length - 1] = lastElement;
     return chunked.join('');
-}
+};
 
 const createArrayWithPadding = arr => {
     const tempArr = arr;
-    if(tempArr[tempArr.length - 1].length === 64) {
+    if (tempArr[tempArr.length - 1].length === 64) {
         let newItem = '';
         newItem = newItem.padStart(64, '0');
-        newItem = '1' + newItem.slice(1);
+        newItem = `1${newItem.slice(1)}`;
         tempArr.push(newItem);
     } else {
         let addition = '';
         const remains = 64 - tempArr[tempArr.length - 1].length;
-        addition = addition.padStart(remains, '0');        
-        addition = '1' + addition.slice(1);
-        tempArr[tempArr.length - 1] += addition 
+        addition = addition.padStart(remains, '0');
+        addition = `1${addition.slice(1)}`;
+        tempArr[tempArr.length - 1] += addition;
     }
     return tempArr;
-} 
+};
 
 const binToString = str => {
-    let binString = '';    
-    chunkString(str, 8).map(function(bin) {
+    let binString = '';
+    chunkString(str, 8).map(bin => {
         binString += String.fromCharCode(parseInt(bin, 2));
-      });
+        return binString;
+    });
     return binString;
-}
+};
 
 const stringToBinary = (str, spaceSeparatedOctets) => {
-    const zeroPad = (num) => "00000000".slice(String(num).length) + num;
+    const zeroPad = num => '00000000'.slice(String(num).length) + num;
 
-    return str.replace(/[\s\S]/g, function(str) {
-        str = zeroPad(str.charCodeAt().toString(2));
-        return !1 == spaceSeparatedOctets ? str : str + " "
+    return str.replace(/[\s\S]/g, _str => {
+        const temp = zeroPad(_str.charCodeAt().toString(2));
+        return !1 === spaceSeparatedOctets ? temp : `${temp} `;
     });
 };
 
 const deleteSpaces = str => str.replace(/ /g, '');
 
-const chunkString = (str, len) => str.match(new RegExp(`.{1,${len}}`, 'g'));
-
 const hexToBin = hex => `00000000${parseInt(hex, 16).toString(2)}`.substr(-8);
 
 const decToBin = dec => `0000${parseInt(dec, 10).toString(2)}`.substr(-4);
 
+// eslint-disable-next-line no-bitwise
 const decToBin8bytes = dec => (dec >>> 0).toString(2);
 
 const binToHex = bin => parseInt(bin, 2).toString(16);
@@ -94,18 +95,17 @@ const transformBinToHex = value =>
         .join('')
         .toUpperCase();
 
-//question interface
+// question interface
 const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
 });
 
-//questions
+// questions
 
-const askAboutSavingToBinaryFile = () => new Promise((resolve, reject) => {
-    rl.question(
-        'Do you want to create binary file?(yes/no) \n',
-        answer => {
+const askAboutSavingToBinaryFile = () =>
+    new Promise((resolve, reject) => {
+        rl.question('Do you want to create binary file?(yes/no) \n', answer => {
             switch (answer) {
                 case 'yes':
                     savingToBinaryFile = true;
@@ -114,70 +114,62 @@ const askAboutSavingToBinaryFile = () => new Promise((resolve, reject) => {
                 case 'no':
                     savingToBinaryFile = false;
                     resolve();
-                    break;               
+                    break;
                 default:
                     console.log('wrong input.');
                     process.exit(1);
             }
-        }
-    );
-});
+        });
+    });
 
-const askAboutConsoleOutputType = () => new Promise((resolve, reject) => {
-    rl.question(
-        'Enter type of console output(text/bin/hex) \n',
-        answer => {
+const askAboutConsoleOutputType = () =>
+    new Promise((resolve, reject) => {
+        rl.question('Enter type of console output(text/bin/hex) \n', answer => {
             switch (answer) {
                 case 'text':
                 case 'hex':
                 case 'bin':
                     consoleOutputType = answer;
                     resolve();
-                    break;                
+                    break;
                 default:
                     console.log('wrong input.');
                     process.exit(1);
             }
-        }
-    );
-});
+        });
+    });
 
-const askAboutKeyInputType = () => new Promise((resolve, reject) => {
-    rl.question(
-        'Enter key type(bin/hex)\n',
-        answer => {
+const askAboutKeyInputType = () =>
+    new Promise((resolve, reject) => {
+        rl.question('Enter key type(bin/hex)\n', answer => {
             switch (answer) {
                 case 'hex':
                 case 'bin':
                     keyInputType = answer;
                     resolve();
-                    break;                
+                    break;
                 default:
                     console.log('wrong input.');
                     process.exit(1);
             }
-        }
-    );
-});
+        });
+    });
 
-const askAboutConsoleInputType = () => 
+const askAboutConsoleInputType = () =>
     new Promise((resolve, reject) => {
-        rl.question(
-            'Enter input type(text/bin/hex)\n',
-            answer => {
-                switch (answer) {
-                    case 'text':
-                    case 'bin':
-                    case 'hex':
-                        consoleInputType = answer;
-                        resolve();
-                        break;                
-                    default:
-                        console.log('wrong input.');
-                        process.exit(1);
-                }
+        rl.question('Enter input type(text/bin/hex)\n', answer => {
+            switch (answer) {
+                case 'text':
+                case 'bin':
+                case 'hex':
+                    consoleInputType = answer;
+                    resolve();
+                    break;
+                default:
+                    console.log('wrong input.');
+                    process.exit(1);
             }
-        );
+        });
     });
 
 const askAboutInputSystem = () =>
@@ -188,7 +180,6 @@ const askAboutInputSystem = () =>
                 switch (answer) {
                     case 'file':
                         inputSystem = answer;
-                        chosenSystem = 'bin';
                         resolve();
                         break;
                     case 'console':
@@ -225,15 +216,15 @@ const askAboutMessage = () =>
     new Promise((resolve, reject) => {
         rl.question(`Enter the message\n`, answer => {
             const trimmedAnswer = deleteSpaces(answer);
-            if(inputSystem === 'console') {
-                switch(consoleInputType) {
+            if (inputSystem === 'console') {
+                switch (consoleInputType) {
                     case 'text':
-                        message = stringToBinary(trimmedAnswer, false)
+                        message = stringToBinary(trimmedAnswer, false);
                         break;
                     case 'hex':
                         message = bin(trimmedAnswer);
                         break;
-                    default: 
+                    default:
                         message = trimmedAnswer;
                         break;
                 }
@@ -269,7 +260,7 @@ const askAboutKey = () =>
                     }
                     break;
             }
-            if(keyInputType === 'hex') {
+            if (keyInputType === 'hex') {
                 key = bin(trimmedAnswer);
             } else {
                 key = trimmedAnswer;
@@ -418,15 +409,15 @@ const
     NUM_OF_LEFT_SHIFTS = [1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1];
 /* eslint-enable */
 
-const keySchedule = key => {
+const keySchedule = _key => {
     // generujemy klucze!
     const subkeys = []; // pusta tablica xD
-    const perm = PC1.map(index => key[index - 1]).join(''); // permutacja wejsciowa, cisniemy 7 bajtow przez PC1
+    const perm = PC1.map(index => _key[index - 1]).join(''); // permutacja wejsciowa, cisniemy 7 bajtow przez PC1
     let C0 = perm.substr(0, perm.length / 2); // dzielimy na 2x28
     let D0 = perm.substr(perm.length / 2); // dzielimy na 2x28
     let prevC0 = C0;
     let prevD0 = D0; // deklarujemy prevy
-    NUM_OF_LEFT_SHIFTS.forEach((shift, i) => {
+    NUM_OF_LEFT_SHIFTS.forEach(shift => {
         C0 = shiftString(prevC0, shift); // przesuwamy polowke na podstawie wartosci w NUM_OF_LEFT_SHIFTS w lewo
         D0 = shiftString(prevD0, shift); // przesuwamy polowke na podstawie wartosci w NUM_OF_LEFT_SHIFTS w lewo
         prevC0 = C0; // przypisujemy do prevow
@@ -445,7 +436,7 @@ const expandBlock = block => E.map(index => block[index - 1]).join('');
 // xorujemy bity w stringach, trzeba podac dlugosc stringow
 const stringXOR = (str1, str2, len) => {
     const xor = Array(len);
-    for (let i = 0; i < len; i++) {
+    for (let i = 0; i < len; i += 1) {
         xor[i] = str1[i] === str2[i] ? 0 : 1;
     }
     return xor.join('');
@@ -462,7 +453,7 @@ const sBoxOutput = bits => {
         .join('');
 };
 
-const des = (msg, key, subkeys) => {
+const des = (msg, _key, subkeys) => {
     // funkcja, wiadomosc, klucz i wygeneraowane subklucze
     const perm = IP.map(index => msg[index - 1]).join(''); // jedziemy 1. permutacja msg przez ip1
     let L0 = perm.substr(0, perm.length / 2); // dzielimy na lewice
@@ -494,50 +485,42 @@ const des = (msg, key, subkeys) => {
     return enc;
 };
 
-
-
 const encode = (msg, _key) => des(msg, _key, keySchedule(_key));
 const decode = (msg, _key) => des(msg, _key, keySchedule(_key).reverse());
 
-// EXAMPLE USAGE OF FUNCTIONS BELOW
-
-// let key = bin("133457799BBCDFF1"); // hex
-// let msg = bin("0123456789ABCDEF"); // hex
-// let enc = encode(msg, key);
-
-// console.log(enc); // => 85E813540F0AB405
-// console.log(decode(bin(enc), key)); // => 0123456789ABCDEF
-
-const getMessageFromFile = async () => 
-    new Promise((resolve, reject) => {
-        binary = fs.readFileSync(messagePath, null); 
-        const uint8array = new Uint8Array(binary)
+const getMessageFromFile = async () =>
+    new Promise(resolve => {
+        const binary = fs.readFileSync(messagePath, null);
+        const uint8array = new Uint8Array(binary);
         uint8array.forEach(item => {
-            message += decToBin8bytes(item).padStart(8, '0')
-        })
+            message += decToBin8bytes(item).padStart(8, '0');
+        });
         resolve();
-    })
+    });
 
-const saveDataToFile = async (data, path) => 
-    new Promise((resolve, reject) => {
-        let resultAsBytes = chunkString(data, 8).map(v => parseInt(v, 2))
-        fs.writeFileSync(path, Buffer.from(resultAsBytes))
+const saveDataToFile = async (data, path) =>
+    new Promise(resolve => {
+        const resultAsBytes = chunkString(data, 8).map(v => parseInt(v, 2));
+        fs.writeFileSync(path, Buffer.from(resultAsBytes));
         resolve();
-    })
+    });
 
-const handleOutput = (value) => {
-    switch(consoleOutputType) {
+const handleOutput = value => {
+    switch (consoleOutputType) {
         case 'text':
-            console.log('Value:\n', binToString(value))
+            // eslint-disable-next-line no-console
+            console.log('Value:\n', binToString(value));
             break;
         case 'hex':
-            console.log('Value:\n', transformBinToHex(value))
+            // eslint-disable-next-line no-console
+            console.log('Value:\n', transformBinToHex(value));
             break;
         default:
-            console.log('Value:\n', value)
-            break;            
+            // eslint-disable-next-line no-console
+            console.log('Value:\n', value);
+            break;
     }
-}
+};
 
 const handleDes = async () => {
     const chunkedMessage = chunkString(message, 64);
@@ -546,29 +529,26 @@ const handleDes = async () => {
         const paddingArray = createArrayWithPadding(chunkedMessage);
         paddingArray.forEach(item => {
             const encryptedItem = encode(item, key);
-            encryptedValue += encryptedItem;  
-        })
-        if(savingToBinaryFile) {
+            encryptedValue += encryptedItem;
+        });
+        if (savingToBinaryFile) {
             await saveDataToFile(encryptedValue, './encrypted.bin');
         }
-        handleOutput(encryptedValue)
+        handleOutput(encryptedValue);
     } else {
         chunkedMessage.forEach(item => {
             const decryptedItem = decode(item, key);
             decryptedValue += decryptedItem;
-        })  
+        });
         decryptedValue = removePadding(decryptedValue);
-        if(savingToBinaryFile) {
+        if (savingToBinaryFile) {
             await saveDataToFile(decryptedValue, './decrypted.bin');
         }
-        handleOutput(decryptedValue)
+        handleOutput(decryptedValue);
     }
-
-}
-
+};
 
 const main = async () => {
-
     await askAboutWorkingSystem();
     await askAboutInputSystem();
     if (inputSystem === 'console') {
@@ -577,13 +557,13 @@ const main = async () => {
     } else {
         await askAboutMessagePath();
     }
-    await askAboutSavingToBinaryFile();    
+    await askAboutSavingToBinaryFile();
     await askAboutKeyInputType();
     await askAboutKey();
     await askAboutConsoleOutputType();
     rl.close();
 
-    if(inputSystem === 'file') {
+    if (inputSystem === 'file') {
         await getMessageFromFile();
     }
 
