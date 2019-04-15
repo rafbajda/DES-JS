@@ -510,30 +510,18 @@ const decode = (msg, _key) => des(msg, _key, keySchedule(_key).reverse());
 
 const getMessageFromFile = async () => 
     new Promise((resolve, reject) => {
-        binary = fs.readFileSync(messagePath); 
-        const uint8array = Uint8Array.from(binary)
-        console.log('uint8array', uint8array)
+        binary = fs.readFileSync(messagePath, null); 
+        const uint8array = new Uint8Array(binary)
         uint8array.forEach(item => {
-            message += decToBin8bytes(item).padStart(8, '0');
+            message += decToBin8bytes(item).padStart(8, '0')
         })
-        console.log('msg: ', message)
         resolve();
     })
 
 const saveDataToFile = async (data, path) => 
     new Promise((resolve, reject) => {
-        let buffer = new Buffer(data)
-        fs.open(path, 'w', function(err, fd) {  
-            if (err) {
-                throw 'could not open file: ' + err;
-            }
-            fs.write(fd, buffer, 0, buffer.length, null, function(err) {
-                if (err) throw 'error writing file: ' + err;
-                fs.close(fd, function() {
-                    console.log('wrote the file successfully');
-                });
-            });
-        });
+        let resultAsBytes = chunkString(data, 8).map(v => parseInt(v, 2))
+        fs.writeFileSync(path, Buffer.from(resultAsBytes))
         resolve();
     })
 
@@ -553,8 +541,6 @@ const handleOutput = (value) => {
 
 const handleDes = async () => {
     const chunkedMessage = chunkString(message, 64);
-    // console.log(paddingArray)
-
 
     if (workingSystem === 'encrypt') {
         const paddingArray = createArrayWithPadding(chunkedMessage);
